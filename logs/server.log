@@ -1,15 +1,7 @@
 INFO:     Will watch for changes in these directories: ['/home/workspace']
 INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
-INFO:     Started reloader process [353] using StatReload
-INFO:     Started server process [355]
+INFO:     Started reloader process [490] using StatReload
+INFO:     Started server process [492]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
-INFO:     172.20.0.1:43834 - "POST /api/providers/models HTTP/1.1" 200 OK
-INFO:     172.20.0.1:43842 - "POST /api/providers/models HTTP/1.1" 200 OK
-INFO:     172.20.0.1:43852 - "HEAD / HTTP/1.1" 405 Method Not Allowed
-INFO:     172.20.0.1:41760 - "POST /api/providers/models HTTP/1.1" 200 OK
-INFO:     172.20.0.1:41774 - "POST /api/providers/models HTTP/1.1" 200 OK
-INFO:     172.20.0.1:41778 - "OPTIONS /api/providers/models HTTP/1.1" 200 OK
-INFO:     172.20.0.1:41794 - "OPTIONS /api/providers/models HTTP/1.1" 200 OK
-INFO:     172.20.0.1:41778 - "POST /api/providers/models HTTP/1.1" 200 OK
-INFO:     172.20.0.1:41794 - "POST /api/providers/models HTTP/1.1" 200 OK
+INFO:     172.20.0.1:43682 - "HEAD / HTTP/1.1" 405 Method Not Allowed
