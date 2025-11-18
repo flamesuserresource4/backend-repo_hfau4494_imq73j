@@ -160,6 +160,136 @@ def test_connection(req: ProviderTestRequest) -> Dict[str, Any]:
 
 
 # -----------------------------
+# Private Server for Development
+# -----------------------------
+
+class PrivateServerConfig(BaseModel):
+    enabled: bool = False
+    name: Optional[str] = None
+    host: Optional[str] = None
+    port: Optional[str] = None
+    username: Optional[str] = None
+    token: Optional[str] = None
+    protocol: Literal["HTTP", "HTTPS", "SSE", "WebSocket"] = "HTTP"
+    base_url: Optional[str] = None
+
+    def build_base_url(self) -> Optional[str]:
+        if self.base_url:
+            return self.base_url
+        if not self.host:
+            return None
+        scheme = "https" if self.protocol == "HTTPS" else "http"
+        if self.port:
+            return f"{scheme}://{self.host}:{self.port}"
+        return f"{scheme}://{self.host}"
+
+
+class PrivateServerTestRequest(PrivateServerConfig):
+    path: str = "/"
+    timeout_seconds: int = 5
+
+
+@app.post("/api/private-server/test-connection")
+def private_server_test(req: PrivateServerTestRequest) -> Dict[str, Any]:
+    import json
+    import urllib.request
+    import urllib.error
+
+    base = req.build_base_url()
+    if not base:
+        return {"ok": False, "message": "Missing host or base URL"}
+
+    url = base.rstrip("/") + (req.path if req.path.startswith("/") else f"/{req.path}")
+    headers = {"User-Agent": "FlamesPrivateClient/1.0"}
+    if req.token:
+        headers["Authorization"] = f"Bearer {req.token}"
+    try:
+        request = urllib.request.Request(url, headers=headers, method="GET")
+        with urllib.request.urlopen(request, timeout=req.timeout_seconds) as resp:  # nosec B310
+            status = resp.status
+            content_type = resp.headers.get("Content-Type", "")
+            ok = 200 <= status < 400
+            # Try to parse a small JSON if available (best-effort)
+            body = None
+            try:
+                if content_type.startswith("application/json"):
+                    body = json.loads(resp.read().decode("utf-8"))
+            except Exception:  # noqa: BLE001
+                body = None
+            return {
+                "ok": ok,
+                "status": status,
+                "content_type": content_type,
+                "url": url,
+                "body": body,
+                "protocol": req.protocol,
+            }
+    except urllib.error.HTTPError as e:  # noqa: BLE001
+        return {"ok": False, "status": e.code, "message": str(e), "url": url}
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "message": str(e), "url": url}
+
+
+class ExecRequest(BaseModel):
+    connection: PrivateServerConfig
+    command: str = "echo Hello"
+    cwd: Optional[str] = None
+    env: Optional[Dict[str, str]] = None
+
+
+@app.post("/api/private-server/exec/stream")
+def private_server_exec_stream(req: ExecRequest):
+    # Mock streaming logs; later this can proxy to the private server over SSE/WebSocket
+    def generator():
+        import time
+        import json
+        start = datetime.now(timezone.utc).isoformat()
+        header = {"type": "start", "command": req.command, "cwd": req.cwd, "start": start}
+        yield f"data: {json.dumps(header)}\n\n"
+        lines = [
+            "Preparing environment...",
+            "Connecting to private server...",
+            f"Protocol: {req.connection.protocol}",
+            f"Executing: {req.command}",
+            "Running...",
+        ]
+        for i, line in enumerate(lines, 1):
+            payload = {"type": "log", "line": line, "seq": i, "ts": datetime.now(timezone.utc).isoformat()}
+            yield f"data: {json.dumps(payload)}\n\n"
+            time.sleep(0.2)
+        # Fake output
+        out_lines = ["stdout: Hello from Private Server", "stdout: Process complete"]
+        for l in out_lines:
+            payload = {"type": "output", "data": l, "ts": datetime.now(timezone.utc).isoformat()}
+            yield f"data: {json.dumps(payload)}\n\n"
+            time.sleep(0.15)
+        yield "data: {\"type\": \"done\"}\n\n"
+
+    return StreamingResponse(generator(), media_type="text/event-stream")
+
+
+class FilesListRequest(BaseModel):
+    connection: PrivateServerConfig
+    path: str = "."
+    depth: int = 1
+
+
+@app.post("/api/private-server/files/list")
+def private_server_files_list(req: FilesListRequest) -> Dict[str, Any]:
+    # Mock response; later this can proxy to the private server file API
+    now = datetime.now(timezone.utc).isoformat()
+    return {
+        "ok": True,
+        "path": req.path,
+        "items": [
+            {"name": "app/", "type": "dir", "size": None, "modified": now},
+            {"name": "app/main.py", "type": "file", "size": 1240, "modified": now},
+            {"name": "README.md", "type": "file", "size": 342, "modified": now},
+        ],
+    }
+
+
+# -----------------------------
 # Conversations & Messages
 # -----------------------------
 
